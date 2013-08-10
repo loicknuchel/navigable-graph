@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<meta name="description" content="Some example of navigable graphs with various graph library">
+	<meta name="author" content="Loïc Knuchel">
+	<title>Jit navigable graph</title>
+	<link href="../../lib/css/bootstrap.min.css" rel="stylesheet">
+	<link href="../../lib/css/font-awesome.min.css" rel="stylesheet">
+	<link href="../common/styles.css" rel="stylesheet">
+	<link href="jitStyles.css" rel="stylesheet">
+	<style>
+	#graph {
+		border: 1px solid black;
+		background: #1a1a1a;
+	}
+	</style>
+</head>
+<body>
+	<div class="navbar navbar-inverse navbar-fixed-top">
+		<div class="container">
+			<button type="button" class="navbar-toggle" data-toggle="collapse" data-target=".nav-collapse">
+				<span class="icon-bar"></span>
+				<span class="icon-bar"></span>
+				<span class="icon-bar"></span>
+			</button>
+			<a class="navbar-brand" href="#">Jit navigable graph</a>
+			<div class="nav-collapse collapse">
+				<ul class="nav navbar-nav">
+					<li><a href="../">Home</a></li>
+					<li class="active"><a href="#">Demo</a></li>
+				</ul>
+			</div>
+		</div>
+	</div>
+	
+	<div class="container">
+		<div class="row">
+			<div class="col-lg-2">
+				<div id="graph-info"></div>
+			</div>
+			<div class="col-lg-10">
+				<div id="graph"></div>
+			</div>
+		</div>
+	</div>
+	<script src="../../lib/js/jquery-2.0.3.min.js"></script>
+	<script src="../../lib/js/bootstrap.min.js"></script>
+	<script src="../../lib/js/jit.js"></script>
+	<script src="../common/RESTService.js"></script>
+	<script src="../../jquery.jit.navigableGraph.js"></script>
+	<script>
+		RESTService.dataType = 'tree';
+		RESTService.maxDepth = 2;
+		RESTService.nbChilds = 3;
+		var graphOpts = {
+			graphType: $.fn.navigableGraph.graphType.hypertree, // forceDirected hypertree rGraph
+			addNewNodesOnUpdate: false,
+			initialGraphData: undefined,
+			getGraphForNode: function(node, callback){
+				RESTService.getJSON(node.data.updateUrl, function(data){
+					callback(data);
+				});
+			},
+			showTips: false,
+			drawNodeLabel: function(node, domElement){
+				var hasChild = node.getSubnodes().length > 1;
+				domElement.className = 'node-label depth'+node._depth;
+				if(node._depth > 2){
+					domElement.className += ' depthx';
+				}
+				domElement.innerHTML =  '<span class="name">'+node.name+'</span> '+
+										(hasChild ? '<span class="expand">['+(node.collapsed ? '+' : '-')+']</span> ' : '')+
+										'<span class="remove">x</span>';
+			},
+			drawNodeTip: function(node, domElement){
+				var count = 0;
+				node.eachAdjacency(function() { count++; });
+				domElement.className = 'node-tip';
+				domElement.innerHTML =  "<div class=\"title\">" + node.name + "</div> " + 
+										"<div class=\"text\"><b>connections:</b> " + count + "</div>";
+			},
+			showNodeInfo: function(node){
+				var html = "<h4>" + node.name + "</h4><b> connections:</b><ul><li>",
+					list = [];
+				node.eachAdjacency(function(adj){
+				  if(adj.getData('alpha')) list.push(adj.nodeTo.name);
+				});
+				$('#graph-info').html(html + list.join("</li><li>") + '</li></ul><a href="#" class="btn btn-default more">More details</a>');
+				
+				var defaultSettings = this;
+				$('#graph-info').find('.more').click(function(){
+					defaultSettings.showNodeDetails(node);
+				});
+			},
+			showEdgeInfo: function(edge){
+				var html = '<h4>Edge from '+edge.nodeFrom.name+' to '+edge.nodeTo.name+'</h4><a href="#" class="btn more">More details</a>';
+				$('#graph-info').html(html);
+				
+				var defaultSettings = this;
+				$('#graph-info').find('.more').click(function(){
+					defaultSettings.showEdgeDetails(edge);
+				});
+			},
+			hideInfo: function(node){
+				$('#graph-info').html('');
+			},
+			showNodeDetails: function(node){
+				if($('#graph-details').length == 0){
+					$('body').append('<div id="graph-details" class="modal fade"></div>');
+				}
+				$('#graph-details').html('<div class="modal-dialog">'+
+											'<div class="modal-content">'+
+												'<div class="modal-header">'+
+													'<button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>'+
+													'<h4 class="modal-title">Node '+node.name+'</h4>'+
+												'</div>'+
+												'<div class="modal-body">'+
+													'<p>Paramètres :</p>'+
+													'<ul>'+
+														'<li>Url: '+node.data.updateUrl+'</li>'+
+													'</ul>'+
+												'</div>'+
+												'<div class="modal-footer">'+
+													'<button type="button" class="btn btn-default" data-dismiss="modal">Close</button>'+
+													'<button type="button" class="btn btn-primary">Save changes</button>'+
+												'</div>'+
+											'</div>'+
+										'</div>');
+				$('#graph-details').modal('show');
+			},
+			showEdgeDetails: function(edge){
+				alert('More details for edge ');
+			},
+			hideDetails: function(){
+				if($('#graph-details').length > 0){
+					$('#graph-details').modal('hide');
+				}
+			},
+			startLoading: function(){
+				if($('#graph .loading').length == 0){
+					$('#graph').prepend('<div class="loading alert" style="float: right;z-index: 100000;"><i class="icon-spinner icon-spin"></i> Graph is loading...</div>');
+				} else {
+					$('#graph .loading').show();
+				}
+			},
+			stopLoading: function(){
+				$('#graph .loading').hide();
+			},
+			preprocessNode: function(node){
+				if(node){
+					if(node.data){
+						if(node.data.type){
+							if(node.data.type == "user"){
+								node.name = '<i class="icon-user"></i> '+node.id.replace(new RegExp('_', 'g'), ' ');
+								// node.data.$color = 'green';
+								// node.data.$dim = 4;
+							}
+						}
+					}
+					/*if(node.adjacencies){
+						for(var i in node.adjacencies){
+							var adj = node.adjacencies[i];
+							if(typeof adj == 'string' && (node.id == 'root' || adj == 'root')){
+								node.adjacencies[i] = {
+									nodeTo: adj,
+									nodeFrom: node.id,
+									data: {
+										$color: "#f00"
+									}
+								};
+							} else if(typeof adj == 'object' && (node.id == 'root' || adj.nodeTo == 'root' || adj.nodeFrom == 'root')){
+								if(!node.adjacencies[i].data){node.adjacencies[i].data = {};}
+								node.adjacencies[i].data.$color = '#f00';
+							}
+						}
+					}*/
+				}
+			}
+		};
+		
+		function drawGraph(graphOpts){
+			$('#graph').html('');
+			$('#graph').navigableGraph(graphOpts);
+		}
+		
+		RESTService.getJSON('root', function(data){
+			graphOpts.initialGraphData = data;
+			drawGraph(graphOpts);
+		});
+	</script>
+</body>
+</html>
